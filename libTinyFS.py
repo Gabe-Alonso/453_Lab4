@@ -2,6 +2,7 @@
 
 import time
 import libDisk
+import datetime
 
 BLOCKSIZE = 256
 DEFAULT_DISK_SIZE = 10240
@@ -45,7 +46,7 @@ def tfs_mkfs(filename, nBytes):
     t3 = t * 3
     data[1:13] = t3
     print(t3)
-    data[14] = 2
+    data[13] = 2
 
 
     libDisk.writeBlock(disk_num, 1, data)
@@ -160,7 +161,7 @@ def tfs_open(filename):
         print(t)
         t3 = t * 3
         data[1:13] = t3
-        data[14] = new_data
+        data[13] = new_data
         libDisk.writeBlock(cur_disk, inode_location, data)
 
         # Update access time for root inode
@@ -223,7 +224,7 @@ def tfs_write(fd, buffer, size):
                 libDisk.writeBlock(cur_disk, 0, data)
 
             libDisk.readBlock(cur_disk, res_tab[fd]["inode"], data)
-            i = 14
+            i = 13
             # Add new entries to inode
             for block in res_tab[fd]["d_blocks"]:
                 data[i] = block
@@ -269,7 +270,7 @@ def tfs_delete(fd):
     # Deallocate and reformat all data associated blocks and inode
     data = bytearray([0x0] * BLOCKSIZE)
     libDisk.readBlock(cur_disk, res_tab[fd]["inode"], data)
-    index = 14
+    index = 13
     deleted_blocks = []
     while data[index] != 0x0:
         data2 = bytearray([0x0] * BLOCKSIZE)
@@ -326,6 +327,24 @@ def tfs_seek(fd, offset):
 def tfs_stat(fd):
     print("Stat File")
 
+    data = bytearray([0x0] * BLOCKSIZE)
+    libDisk.readBlock(cur_disk, fd, data)
+    data[0] = 0x0
+    time.sleep(5)
+    access = int(time.time())
+    t_bytes = access.to_bytes(4, byteorder='big')
+    print("New Inode access time")
+
+    data[1:5] = t_bytes
+    acc_form = datetime.datetime.fromtimestamp(access).strftime("%Y-%m-%d %H:%M:%S")
+    mod = int.from_bytes(data[5:9], byteorder='big')
+    mod_form = datetime.datetime.fromtimestamp(mod).strftime("%Y-%m-%d %H:%M:%S")
+    cre = int.from_bytes(data[9:13], byteorder='big')
+    cre_form = datetime.datetime.fromtimestamp(cre).strftime("%Y-%m-%d %H:%M:%S")
+    print(acc_form, mod_form, cre_form)
+
+    libDisk.writeBlock(cur_disk, fd, data)
+
 
 def tfs_makeRO(filename):
     print("Make file Read only")
@@ -335,7 +354,7 @@ def tfs_makeRO(filename):
             inode = b["inode"]
     data = bytearray([0x0] * BLOCKSIZE)
     libDisk.readBlock(cur_disk, inode, data)
-    data[0] = 0x0
+    data[0] = 0x1
     t = int(time.time()).to_bytes(4, byteorder='big')
     print("New Inode access time")
     print(t)
@@ -350,7 +369,7 @@ def tfs_makeRW(filename):
             inode = b["inode"]
     data = bytearray([0x0] * BLOCKSIZE)
     libDisk.readBlock(cur_disk, inode, data)
-    data[0] = 0x1
+    data[0] = 0x0
     t = int(time.time()).to_bytes(4, byteorder='big')
     print("New Inode access time")
     print(t)
