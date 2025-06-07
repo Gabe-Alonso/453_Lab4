@@ -13,6 +13,10 @@ def main():
                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                            , 300)
+    buffer = bytearray([0x0])
+    libTinyFS.tfs_readByte(1, buffer)
+    print("buffer" + str(buffer))
+    libTinyFS.tfs_writeByte(1, 'e')
     libTinyFS.tfs_stat(1)
     libTinyFS.tfs_close(1)
     libTinyFS.tfs_umount()
