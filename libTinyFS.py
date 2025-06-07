@@ -10,12 +10,11 @@ DEFAULT_DISK_NAME = "tinyFSDISK"
 
 cur_disk = -1
 fd_counter = 1
-res_tab = {0: {"inode": 1, "fp": 9, "filename": "root", "d_blocks": [2]}}
+res_tab = {}
 
 
 def tfs_mkfs(filename, nBytes):
     print("Make Filesystem")
-
     disk_num = libDisk.openDisk(filename, nBytes)
     data = bytearray([0x0] * BLOCKSIZE)
     libDisk.readBlock(disk_num, 0, data)
@@ -68,6 +67,9 @@ def tfs_mkfs(filename, nBytes):
 def tfs_mount(filename):
     print("Mount Filesystem")
     global cur_disk
+    global fd_counter
+    fd_counter = 1
+    res_tab[0] = {"inode": 1, "fp": 9, "filename": "root", "d_blocks": [2]}
     if cur_disk != -1:
         print("Another filesystem is already mounted")
         return -1
@@ -104,6 +106,7 @@ def tfs_open(filename):
         print("Filename cannot be longer than 8 characters")
         return -1
     global res_tab
+    print(res_tab)
     data = bytearray([0x0] * BLOCKSIZE)
     libDisk.readBlock(cur_disk, 2, data)
     i = 0
@@ -121,6 +124,7 @@ def tfs_open(filename):
             for i, b in res_tab.items():
                 if b["inode"] == inode_location:
                     data_blocks = b["d_blocks"]
+            break
         i += 9
     if inode_location == -1:
         print("File does not exist, creating file " + filename)
@@ -172,6 +176,20 @@ def tfs_open(filename):
         print(t)
         data[1:5] = t
         libDisk.writeBlock(cur_disk, 1, data)
+    elif inode_location > -1 and data_blocks is None:
+        data = bytearray([0x0] * BLOCKSIZE)
+        libDisk.readBlock(cur_disk, inode_location, data)
+        t = int(time.time()).to_bytes(4, byteorder='big')
+        print("New Inode access time")
+        print(t)
+        data[1:5] = t
+        i = 13
+        data_blocks = []
+        while data[i] != 0x0:
+            data_blocks.append(data[i])
+            i += 1
+        libDisk.writeBlock(cur_disk, inode_location, data)
+
 
     global fd_counter
     fd = fd_counter
@@ -181,7 +199,7 @@ def tfs_open(filename):
     else:
         res_tab[fd] = {"inode": inode_location, "fp": 0, "filename": filename, "d_blocks": [new_data]}
     print(res_tab)
-    return 0
+    return fd
 
 
 def tfs_close(fd):
@@ -196,6 +214,8 @@ def tfs_write(fd, buffer, size):
     # Check if file is writable
     data = bytearray([0x0] * BLOCKSIZE)
     libDisk.readBlock(cur_disk, res_tab[fd]["inode"], data)
+    print("Is block writable?")
+    print(data[0])
     if data[0] == 0x0:
         print("File is read only")
         return -1
@@ -207,7 +227,7 @@ def tfs_write(fd, buffer, size):
         padding = BLOCKSIZE - (len(new_data) % BLOCKSIZE)
         if padding != BLOCKSIZE:
             new_data += b'\x00' * padding
-        libDisk.writeBlock(cur_disk, res_tab[fd]["inode"], new_data)
+        libDisk.writeBlock(cur_disk, res_tab[fd]["d_blocks"][0], new_data)
     else:
         # If it is, allocate as many new blocks as necessary and write each block's worth to the new blocks
         # Keeping track of what new blocks you use
@@ -266,7 +286,7 @@ def tfs_write(fd, buffer, size):
     for i, b in res_tab.items():
         if b["inode"] == res_tab[fd]["inode"]:
             b["d_blocks"] = blocks
-            res_tab[fd]["fp"] = 0
+            b["fp"] = 0
     print(res_tab)
     return 0
 
@@ -349,17 +369,16 @@ def tfs_seek(fd, offset):
     res_tab[fd]["fp"] = offset
     return 0
 
-
 def tfs_stat(fd):
     print("Stat File")
 
     data = bytearray([0x0] * BLOCKSIZE)
-    libDisk.readBlock(cur_disk, fd, data)
-    time.sleep(5)
+    libDisk.readBlock(cur_disk, res_tab[fd]["inode"], data)
+    time.sleep(1)
     access = int(time.time())
     t_bytes = access.to_bytes(4, byteorder='big')
     print("New Inode access time")
-    readability = 0
+    readability = ""
     if data[0] == 0x0:
         readability = "Read and Write"
     else:
@@ -371,27 +390,11 @@ def tfs_stat(fd):
     cre = int.from_bytes(data[9:13], byteorder='big')
     cre_form = datetime.datetime.fromtimestamp(cre).strftime("%Y-%m-%d %H:%M:%S")
     print(acc_form, mod_form, cre_form)
-
-    libDisk.writeBlock(cur_disk, fd, data)
-
+    libDisk.readBlock(cur_disk, res_tab[fd]["inode"], data)
+    return readability + " " + acc_form + " " + mod_form + " " + cre_form
 
 def tfs_makeRO(filename):
     print("Make file Read only")
-    inode = -1
-    for i, b in res_tab.items():
-        if b["filename"] == filename:
-            inode = b["inode"]
-    data = bytearray([0x0] * BLOCKSIZE)
-    libDisk.readBlock(cur_disk, inode, data)
-    data[0] = 0x1
-    t = int(time.time()).to_bytes(4, byteorder='big')
-    print("New Inode access time")
-    print(t)
-    data[1:5] = t
-    libDisk.writeBlock(cur_disk, inode, data)
-
-def tfs_makeRW(filename):
-    print("Make file Readable and writable")
     inode = -1
     for i, b in res_tab.items():
         if b["filename"] == filename:
@@ -404,8 +407,25 @@ def tfs_makeRW(filename):
     print(t)
     data[1:5] = t
     libDisk.writeBlock(cur_disk, inode, data)
+    return 0
 
-def tfs_writeByte(fd, offset, char):
+def tfs_makeRW(filename):
+    print("Make file Readable and writable")
+    inode = -1
+    for i, b in res_tab.items():
+        if b["filename"] == filename:
+            inode = b["inode"]
+    data = bytearray([0x0] * BLOCKSIZE)
+    libDisk.readBlock(cur_disk, inode, data)
+    data[0] = 0x1
+    t = int(time.time()).to_bytes(4, byteorder='big')
+    print("New Inode access time")
+    print(t)
+    data[1:5] = t
+    libDisk.writeBlock(cur_disk, inode, data)
+    return 0
+
+def tfs_writeByteAtOffset(fd, offset, char):
     print("Write Byte to File")
 
     # Check if file is writable
@@ -433,6 +453,7 @@ def tfs_writeByte(fd, offset, char):
     print(t)
     data[1:5] = t
     libDisk.writeBlock(cur_disk, res_tab[fd]["inode"], data)
+    return 0
 
 def tfs_writeByte(fd, char):
     print("Write Byte to File (Using Current File Pointer)")
@@ -454,3 +475,4 @@ def tfs_writeByte(fd, char):
     print(t)
     data[1:5] = t
     libDisk.writeBlock(cur_disk, res_tab[fd]["inode"], data)
+    return 0
