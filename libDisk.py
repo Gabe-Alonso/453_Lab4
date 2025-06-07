@@ -6,6 +6,14 @@ disks = {}
 closed_disks = {}
 disk_num_counter = 0
 
+def showDisk():
+    disk = disks[0]
+    disk.seek(0)
+    block = disk.read(10240)
+    for i in range(0, 10240):
+        print(f"{block[i]:08X}", end='\\')
+    print()
+
 def openDisk(filename, nBytes):
     print("openDisk")
     global disk_num_counter
@@ -19,7 +27,7 @@ def openDisk(filename, nBytes):
         print(closed_disks)
         return disk_num_counter - 1
     elif nBytes == 0:
-        disk = open(filename, "rb")
+        disk = open(filename, "rb+")
         newDiskNum = closed_disks[filename]
         disks[newDiskNum] = disk
         print(disks)
@@ -32,7 +40,7 @@ def readBlock(disk, bNum, block: bytearray):
     print("readBlock")
     curDisk = disks[disk]
     curDisk.seek(bNum * BLOCKSIZE)
-    block = curDisk.read(BLOCKSIZE)
+    block[:] = curDisk.read(BLOCKSIZE)
     for i in range(0, len(block)):
         chunk = block[i]
         print(f"{chunk:08X}", end='\\')
@@ -56,8 +64,7 @@ def closeDisk(diskNum):
     disk = disks[diskNum]
     closed_disks[disk.name] = diskNum
     disk.close()
-    del disks[diskNum]
-    print("Open Disks: ")
+    print("Disks: ")
     print(disks)
     print("Closed Disks: ")
     print(closed_disks)
