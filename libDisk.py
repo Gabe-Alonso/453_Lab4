@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import errors
+
 BLOCKSIZE = 256
 
 disks = {}
@@ -18,6 +20,8 @@ def openDisk(filename, nBytes):
     print("openDisk")
     global disk_num_counter
     global disks
+    if nBytes < 0:
+        return errors.ERR_INVALID_PARAMETERS
     if nBytes > 0:
         disk = open(filename, "wb+")
         disk.write(b'\0' * nBytes)
@@ -34,10 +38,12 @@ def openDisk(filename, nBytes):
         print(closed_disks)
         return newDiskNum
     else:
-        return -1
+        return errors.ERR_INVALID_PARAMETERS
 
 def readBlock(disk, bNum, block: bytearray):
     print("readBlock")
+    if disk not in disks:
+        return errors.ERR_DISK_NOT_MOUNTED
     curDisk = disks[disk]
     curDisk.seek(bNum * BLOCKSIZE)
     block[:] = curDisk.read(BLOCKSIZE)
@@ -45,7 +51,7 @@ def readBlock(disk, bNum, block: bytearray):
         chunk = block[i]
         print(f"{chunk:08X}", end='\\')
     print()
-    return 0
+    return errors.ERR_OK
 
 def writeBlock(disk, bNum, block: bytearray):
     print("writeBlock")
@@ -53,14 +59,18 @@ def writeBlock(disk, bNum, block: bytearray):
         chunk = block[i]
         print(f"{chunk:08X}", end='\\')
     print()
+    if disk not in disks:
+        return errors.ERR_DISK_NOT_MOUNTED
     curDisk = disks[disk]
     curDisk.seek(bNum * BLOCKSIZE)
     curDisk.write(block)
-    return 0
+    return errors.ERR_OK
 
 
 def closeDisk(diskNum):
     print("closeDisk")
+    if diskNum not in disks:
+        return errors.ERR_DISK_NOT_MOUNTED
     disk = disks[diskNum]
     closed_disks[disk.name] = diskNum
     disk.close()
@@ -68,4 +78,4 @@ def closeDisk(diskNum):
     print(disks)
     print("Closed Disks: ")
     print(closed_disks)
-    return 0
+    return errors.ERR_OK
