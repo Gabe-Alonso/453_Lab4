@@ -417,9 +417,9 @@ def tfs_stat(fd):
     print("New Inode access time")
     readability = ""
     if data[0] == 0x0:
-        readability = "Read and Write"
-    else:
         readability = "Read Only"
+    else:
+        readability = "Read and Write"
     data[1:5] = t_bytes
     acc_form = datetime.datetime.fromtimestamp(access).strftime("%Y-%m-%d %H:%M:%S")
     mod = int.from_bytes(data[5:9], byteorder='big')
