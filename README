@@ -1,0 +1,32 @@
+Gabe Alonso
+How well it works:
+-Given that I chose to represent many things that could have been represented as bits as bytes instead,
+its certainly not the most space efficient solution, but I think it generally works well. It fulfills
+all of the requirements. I did make it so that tfs_writeByte wouldn't write a byte when at EOF
+because implementing that whole feature from write sounded too difficult so I artificially imposed
+that lack of usability, but everything is properly functional from my testing. tfs_mkfs() successfully creates
+a disk, superblock, root inode, tfs_mount() and tfs_umount() preserve state, tfs_open() creates and
+reopens files as expected, tfs_write() handles >1 block and allocates new blocks as well as properly
+writing to disk, tfs_readByte() reads correctly with file pointer support, tfs_delete() clears file data,
+directory entry, and block map, tfs_close() frees file descriptor, and my extra features work as well.
+
+Extra Functionality:
+-Timestamps: I decided that spaces 1 to 12 in each inode would represent a block of 3 4 byte times representing
+creation, modification, and access times. Access time I made sure to update after every time the file was touched,
+including looking at the inode, and modification was changed on every write. I made sure this worked by adding
+a sleep that would make sure the times were different and accurate.
+
+-Read Only Enforcement: I also decided that the very first byte in the inode would represent write access, with
+0 being read only and 1 being read/write, and this byte could be changed with make_RO() and make_RW(). I made
+sure this worked because I could see that a write was not happening when the command was run on a read only file.
+This addition also included write byte, which works the same as read byte with an extra step so I know
+it works, although I prevented it from writing at EOF to avoid unneeded complication.
+
+Limitations:
+-Everything is in root
+-Root Directory can store at most 28 filenames of size 8 (due to block size limitation)
+-File sizes are not tracked, so read byte will read empty bytes until end of block
+-Inode can only hold up to around 250 pointers to data blocks (which would be impossible in tinyfs anyway)
+-Free block bitmap in superblock must be linearly searched
+-Only stored permissions are write access
+-All File Descriptors lost upon unmount
